@@ -1,6 +1,8 @@
 package lexer
 
-import "writing_an_interpreter_in_go/pkg/token"
+import (
+	"writing_an_interpreter_in_go/pkg/token"
+)
 
 type Lexer struct {
 	input        string
@@ -33,9 +35,40 @@ func (l *Lexer) NextToken() token.Token {
 
 	switch l.ch {
 	case '=':
-		tok = newToken(token.ASSIGN, l.ch)
+		if l.peekChar() == '=' {
+			ch := l.ch
+			l.readChar()
+			literal := string(ch) + string(l.ch)
+			tok = newToken(token.EQ, literal)
+		} else {
+			tok = newToken(token.ASSIGN, l.ch)
+		}
+
 	case '+':
 		tok = newToken(token.PLUS, l.ch)
+	case '-':
+		tok = newToken(token.MINUS, l.ch)
+	case '!':
+		if l.peekChar() == '=' {
+			ch := l.ch
+			l.readChar()
+			literal := string(ch) + string(l.ch)
+			tok = newToken(token.NOT_EQ, literal)
+		} else {
+			tok = newToken(token.BANG, l.ch)
+		}
+	case '/':
+		tok = newToken(token.SLASH, l.ch)
+	case '*':
+		tok = newToken(token.ASTERISK, l.ch)
+	case '<':
+		tok = newToken(token.LT, l.ch)
+	case '>':
+		tok = newToken(token.GT, l.ch)
+	case ',':
+		tok = newToken(token.COMMA, l.ch)
+	case ';':
+		tok = newToken(token.SEMICOLON, l.ch)
 	case '(':
 		tok = newToken(token.LPAREN, l.ch)
 	case ')':
@@ -44,23 +77,19 @@ func (l *Lexer) NextToken() token.Token {
 		tok = newToken(token.LBRACE, l.ch)
 	case '}':
 		tok = newToken(token.RBRACE, l.ch)
-	case ',':
-		tok = newToken(token.COMMA, l.ch)
-	case ';':
-		tok = newToken(token.SEMICOLON, l.ch)
 	case 0:
 		tok.Literal = ""
 		tok.Type = token.EOF
 	default:
 		if isLetter(l.ch) {
-			tok.Literal = l.readIdentifier()
+			tok.Literal = l.readContinuous(isLetter)
 			tok.Type = token.LookupIdent(tok.Literal)
 			return tok
 		}
 
 		if isDigit(l.ch) {
 			tok.Type = token.INT
-			tok.Literal = l.readNumber()
+			tok.Literal = l.readContinuous(isDigit)
 			return tok
 		}
 
@@ -68,17 +97,18 @@ func (l *Lexer) NextToken() token.Token {
 	}
 
 	l.readChar()
+
 	return tok
 }
 
-func newToken(tokenType token.TokenType, ch byte) token.Token {
-	return token.Token{Type: tokenType, Literal: string(ch)}
+func newToken[T ~string | ~byte](tokenType token.TokenType, val T) token.Token {
+	return token.Token{Type: tokenType, Literal: string(val)}
 }
 
-func (l *Lexer) readIdentifier() string {
+func (l *Lexer) readContinuous(shouldContinue func(byte) bool) string {
 	position := l.position
 
-	for isLetter(l.ch) {
+	for shouldContinue(l.ch) {
 		l.readChar()
 	}
 
@@ -95,15 +125,14 @@ func (l *Lexer) skipWhitespace() {
 	}
 }
 
-func (l *Lexer) readNumber() string {
-	position := l.position
-	for isDigit(l.ch) {
-		l.readChar()
-	}
-
-	return l.input[position:l.position]
+func isDigit(ch byte) bool {
+	return '0' <= ch && ch <= '9'
 }
 
-func isDigit(ch byte) bool {
-	return '0' < ch && ch <= '9'
+func (l *Lexer) peekChar() byte {
+	if l.readPosition >= len(l.input) {
+		return 0
+	}
+
+	return l.input[l.readPosition]
 }
