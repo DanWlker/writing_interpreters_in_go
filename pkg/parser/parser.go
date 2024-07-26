@@ -3,11 +3,14 @@ package parser
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"writing_an_interpreter_in_go/pkg/ast"
 	"writing_an_interpreter_in_go/pkg/lexer"
 	"writing_an_interpreter_in_go/pkg/token"
 )
+
+var tabCount = 0
 
 const (
 	// To define precedence
@@ -20,6 +23,17 @@ const (
 	PREFIX      // -X or !X
 	CALL        // myFunction(X)
 )
+
+var precedences = map[token.TokenType]int{
+	token.EQ:       EQUALS,
+	token.NOT_EQ:   EQUALS,
+	token.LT:       LESSGREATER,
+	token.GT:       LESSGREATER,
+	token.PLUS:     SUM,
+	token.MINUS:    SUM,
+	token.SLASH:    PRODUCT,
+	token.ASTERISK: PRODUCT,
+}
 
 type Parser struct {
 	l *lexer.Lexer
@@ -34,7 +48,7 @@ type Parser struct {
 }
 
 func New(l *lexer.Lexer) *Parser {
-	fmt.Println("New:")
+	println("New:")
 	p := &Parser{
 		l:              l,
 		prefixParseFns: make(map[token.TokenType]prefixParseFn),
@@ -46,6 +60,15 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerPrefix(token.BANG, p.parsePrefixExpression)
 	p.registerPrefix(token.MINUS, p.parsePrefixExpression)
 
+	p.registerInfix(token.PLUS, p.parseInfixExpression)
+	p.registerInfix(token.MINUS, p.parseInfixExpression)
+	p.registerInfix(token.SLASH, p.parseInfixExpression)
+	p.registerInfix(token.ASTERISK, p.parseInfixExpression)
+	p.registerInfix(token.EQ, p.parseInfixExpression)
+	p.registerInfix(token.NOT_EQ, p.parseInfixExpression)
+	p.registerInfix(token.LT, p.parseInfixExpression)
+	p.registerInfix(token.GT, p.parseInfixExpression)
+
 	// Read two tokens, so curToken and peekToken are both set
 	p.nextToken()
 	p.nextToken()
@@ -53,14 +76,35 @@ func New(l *lexer.Lexer) *Parser {
 	return p
 }
 
+func printf(format string, a ...any) {
+	fmt.Printf(strings.Repeat("  ", tabCount)+format, a...)
+}
+
+func println(format string) {
+	fmt.Println(strings.Repeat("  ", tabCount) + format)
+}
+
+func incrementTabCount() {
+	tabCount++
+}
+
+func decrementTabCount() {
+	tabCount--
+}
+
 func (p *Parser) nextToken() {
+	incrementTabCount()
+	defer decrementTabCount()
+
 	p.curToken = p.peekToken
 	p.peekToken = p.l.NextToken()
-	fmt.Printf("\nnextToken: %s\n", p.curToken)
+	printf("nextToken: %s\n", p.curToken)
 }
 
 func (p *Parser) ParseProgram() *ast.Program {
-	fmt.Println("ParseProgram: ")
+	incrementTabCount()
+	defer decrementTabCount()
+	println("ParseProgram: ")
 	program := &ast.Program{}
 	// program.Statements = []ast.Statement{}
 
@@ -76,7 +120,9 @@ func (p *Parser) ParseProgram() *ast.Program {
 }
 
 func (p *Parser) parseStatement() ast.Statement {
-	fmt.Println("parseStatement: ")
+	incrementTabCount()
+	defer decrementTabCount()
+	println("parseStatement: ")
 	switch p.curToken.Type {
 	case token.LET:
 		return p.parseLetStatement()
@@ -88,7 +134,9 @@ func (p *Parser) parseStatement() ast.Statement {
 }
 
 func (p *Parser) parseLetStatement() *ast.LetStatement {
-	fmt.Println("parseLetStatement: ")
+	incrementTabCount()
+	defer decrementTabCount()
+	println("parseLetStatement: ")
 	stmt := &ast.LetStatement{Token: p.curToken}
 
 	if !p.expectPeek(token.IDENT) {
@@ -110,7 +158,9 @@ func (p *Parser) parseLetStatement() *ast.LetStatement {
 }
 
 func (p *Parser) parseReturnStatement() *ast.ReturnStatement {
-	fmt.Println("parseReturnStatement: ")
+	incrementTabCount()
+	defer decrementTabCount()
+	println("parseReturnStatement: ")
 	stmt := &ast.ReturnStatement{Token: p.curToken}
 
 	p.nextToken()
@@ -123,7 +173,9 @@ func (p *Parser) parseReturnStatement() *ast.ReturnStatement {
 }
 
 func (p *Parser) parseExpressionStatement() *ast.ExpressionStatement {
-	fmt.Println("parseExpressionStatement: ")
+	incrementTabCount()
+	defer decrementTabCount()
+	printf("parseExpressionStatement: %s\n", p.curToken)
 	stmt := &ast.ExpressionStatement{Token: p.curToken}
 
 	stmt.Expression = p.parseExpression(LOWEST)
@@ -136,7 +188,9 @@ func (p *Parser) parseExpressionStatement() *ast.ExpressionStatement {
 }
 
 func (p *Parser) parseExpression(precedence int) ast.Expression {
-	fmt.Printf("parseExpression: %s\n", p.curToken.Type)
+	incrementTabCount()
+	defer decrementTabCount()
+	printf("parseExpression: %s\n", p.curToken.Type)
 	prefix := p.prefixParseFns[p.curToken.Type]
 	if prefix == nil {
 		p.noPrefixParseFnError(p.curToken.Type)
@@ -145,21 +199,38 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 
 	leftExp := prefix()
 
+	for !p.peekTokenIs(token.SEMICOLON) && precedence < p.peekPrecedence() {
+		infix := p.infixParseFn[p.peekToken.Type]
+		if infix == nil {
+			return leftExp
+		}
+
+		p.nextToken()
+
+		leftExp = infix(leftExp)
+	}
+
 	return leftExp
 }
 
 func (p *Parser) curTokenIs(t token.TokenType) bool {
-	fmt.Printf("curTokenIs: want=%s, got=%s\n", t, p.curToken.Type)
+	incrementTabCount()
+	defer decrementTabCount()
+	printf("curTokenIs: want=%s, got=%s\n", t, p.curToken.Type)
 	return p.curToken.Type == t
 }
 
 func (p *Parser) peekTokenIs(t token.TokenType) bool {
-	fmt.Printf("peekTokenIs: want=%s, got=%s\n", t, p.peekToken.Type)
+	incrementTabCount()
+	defer decrementTabCount()
+	printf("peekTokenIs: want=%s, got=%s\n", t, p.peekToken.Type)
 	return p.peekToken.Type == t
 }
 
 func (p *Parser) expectPeek(t token.TokenType) bool {
-	fmt.Printf("expectPeek: %s\n", t)
+	incrementTabCount()
+	defer decrementTabCount()
+	printf("expectPeek: %s\n", t)
 	if !p.peekTokenIs(t) {
 		p.peekError(t)
 		return false
@@ -170,12 +241,16 @@ func (p *Parser) expectPeek(t token.TokenType) bool {
 }
 
 func (p *Parser) Errors() []string {
-	fmt.Println("Errors: ")
+	incrementTabCount()
+	defer decrementTabCount()
+	println("Errors: ")
 	return p.errors
 }
 
 func (p *Parser) peekError(t token.TokenType) {
-	fmt.Println("peekError: ")
+	incrementTabCount()
+	defer decrementTabCount()
+	println("peekError: ")
 	msg := fmt.Sprintf("expected next token to be %s, got %s instead", t, p.peekToken.Type)
 	p.errors = append(p.errors, msg)
 }
@@ -194,12 +269,16 @@ func (p *Parser) registerInfix(tokenType token.TokenType, fn infixParseFn) {
 }
 
 func (p *Parser) parseIdentifier() ast.Expression {
-	fmt.Println("parseIdentifier: ")
+	incrementTabCount()
+	defer decrementTabCount()
+	println("parseIdentifier: ")
 	return &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 }
 
 func (p *Parser) parseIntegerLiteral() ast.Expression {
-	fmt.Println("parseIntegerLiteral: ")
+	incrementTabCount()
+	defer decrementTabCount()
+	println("parseIntegerLiteral: ")
 	lit := &ast.IntegerLiteral{Token: p.curToken}
 
 	value, err := strconv.ParseInt(p.curToken.Literal, 0, 64)
@@ -215,13 +294,17 @@ func (p *Parser) parseIntegerLiteral() ast.Expression {
 }
 
 func (p *Parser) noPrefixParseFnError(t token.TokenType) {
-	fmt.Println("noPrefixParseFnError: ")
+	incrementTabCount()
+	defer decrementTabCount()
+	println("noPrefixParseFnError: ")
 	msg := fmt.Sprintf("no prefix parse function for %s found", t)
 	p.errors = append(p.errors, msg)
 }
 
 func (p *Parser) parsePrefixExpression() ast.Expression {
-	fmt.Println("parsePrefixExpression: ")
+	incrementTabCount()
+	defer decrementTabCount()
+	println("parsePrefixExpression: ")
 	expression := &ast.PrefixExpression{
 		Token:    p.curToken,
 		Operator: p.curToken.Literal,
@@ -230,6 +313,47 @@ func (p *Parser) parsePrefixExpression() ast.Expression {
 	p.nextToken()
 
 	expression.Right = p.parseExpression(PREFIX)
+
+	return expression
+}
+
+func (p *Parser) peekPrecedence() int {
+	incrementTabCount()
+	defer decrementTabCount()
+	if p, ok := precedences[p.peekToken.Type]; ok {
+		printf("peekPrecedence: %v\n", p)
+		return p
+	}
+
+	printf("peekPrecedence: %v\n", LOWEST)
+	return LOWEST
+}
+
+func (p *Parser) curPrecedence() int {
+	incrementTabCount()
+	defer decrementTabCount()
+	if p, ok := precedences[p.curToken.Type]; ok {
+		printf("curPrecedence: %v\n", p)
+		return p
+	}
+
+	printf("curPrecedence: %v\n", LOWEST)
+	return LOWEST
+}
+
+func (p *Parser) parseInfixExpression(left ast.Expression) ast.Expression {
+	incrementTabCount()
+	defer decrementTabCount()
+	println("parseInfixExpression: ")
+	expression := &ast.InfixExpression{
+		Token:    p.curToken,
+		Operator: p.curToken.Literal,
+		Left:     left,
+	}
+
+	precedence := p.curPrecedence()
+	p.nextToken()
+	expression.Right = p.parseExpression(precedence)
 
 	return expression
 }
