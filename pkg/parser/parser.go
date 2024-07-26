@@ -3,14 +3,11 @@ package parser
 import (
 	"fmt"
 	"strconv"
-	"strings"
 
 	"writing_an_interpreter_in_go/pkg/ast"
 	"writing_an_interpreter_in_go/pkg/lexer"
 	"writing_an_interpreter_in_go/pkg/token"
 )
-
-var tabCount = 0
 
 const (
 	// To define precedence
@@ -48,7 +45,7 @@ type Parser struct {
 }
 
 func New(l *lexer.Lexer) *Parser {
-	println("New:")
+	// fmt.Println("New:")
 	p := &Parser{
 		l:              l,
 		prefixParseFns: make(map[token.TokenType]prefixParseFn),
@@ -76,35 +73,14 @@ func New(l *lexer.Lexer) *Parser {
 	return p
 }
 
-func printf(format string, a ...any) {
-	fmt.Printf(strings.Repeat("  ", tabCount)+format, a...)
-}
-
-func println(format string) {
-	fmt.Println(strings.Repeat("  ", tabCount) + format)
-}
-
-func incrementTabCount() {
-	tabCount++
-}
-
-func decrementTabCount() {
-	tabCount--
-}
-
 func (p *Parser) nextToken() {
-	incrementTabCount()
-	defer decrementTabCount()
-
 	p.curToken = p.peekToken
 	p.peekToken = p.l.NextToken()
-	printf("nextToken: %s\n", p.curToken)
+	// fmt.Printf("\nnextToken: %s\n", p.curToken)
 }
 
 func (p *Parser) ParseProgram() *ast.Program {
-	incrementTabCount()
-	defer decrementTabCount()
-	println("ParseProgram: ")
+	// fmt.Println("ParseProgram: ")
 	program := &ast.Program{}
 	// program.Statements = []ast.Statement{}
 
@@ -120,9 +96,7 @@ func (p *Parser) ParseProgram() *ast.Program {
 }
 
 func (p *Parser) parseStatement() ast.Statement {
-	incrementTabCount()
-	defer decrementTabCount()
-	println("parseStatement: ")
+	// fmt.Println("parseStatement: ")
 	switch p.curToken.Type {
 	case token.LET:
 		return p.parseLetStatement()
@@ -134,9 +108,7 @@ func (p *Parser) parseStatement() ast.Statement {
 }
 
 func (p *Parser) parseLetStatement() *ast.LetStatement {
-	incrementTabCount()
-	defer decrementTabCount()
-	println("parseLetStatement: ")
+	// fmt.Println("parseLetStatement: ")
 	stmt := &ast.LetStatement{Token: p.curToken}
 
 	if !p.expectPeek(token.IDENT) {
@@ -158,9 +130,7 @@ func (p *Parser) parseLetStatement() *ast.LetStatement {
 }
 
 func (p *Parser) parseReturnStatement() *ast.ReturnStatement {
-	incrementTabCount()
-	defer decrementTabCount()
-	println("parseReturnStatement: ")
+	// fmt.Println("parseReturnStatement: ")
 	stmt := &ast.ReturnStatement{Token: p.curToken}
 
 	p.nextToken()
@@ -173,9 +143,8 @@ func (p *Parser) parseReturnStatement() *ast.ReturnStatement {
 }
 
 func (p *Parser) parseExpressionStatement() *ast.ExpressionStatement {
-	incrementTabCount()
-	defer decrementTabCount()
-	printf("parseExpressionStatement: %s\n", p.curToken)
+	defer untrace(trace("parseExpressionStatement: "))
+	// fmt.Println("parseExpressionStatement: ")
 	stmt := &ast.ExpressionStatement{Token: p.curToken}
 
 	stmt.Expression = p.parseExpression(LOWEST)
@@ -188,9 +157,8 @@ func (p *Parser) parseExpressionStatement() *ast.ExpressionStatement {
 }
 
 func (p *Parser) parseExpression(precedence int) ast.Expression {
-	incrementTabCount()
-	defer decrementTabCount()
-	printf("parseExpression: %s\n", p.curToken.Type)
+	defer untrace(trace("parseExpression: "))
+	// fmt.Printf("parseExpression: %s\n", p.curToken.Type)
 	prefix := p.prefixParseFns[p.curToken.Type]
 	if prefix == nil {
 		p.noPrefixParseFnError(p.curToken.Type)
@@ -214,23 +182,17 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 }
 
 func (p *Parser) curTokenIs(t token.TokenType) bool {
-	incrementTabCount()
-	defer decrementTabCount()
-	printf("curTokenIs: want=%s, got=%s\n", t, p.curToken.Type)
+	// fmt.Printf("curTokenIs: want=%s, got=%s\n", t, p.curToken.Type)
 	return p.curToken.Type == t
 }
 
 func (p *Parser) peekTokenIs(t token.TokenType) bool {
-	incrementTabCount()
-	defer decrementTabCount()
-	printf("peekTokenIs: want=%s, got=%s\n", t, p.peekToken.Type)
+	// fmt.Printf("peekTokenIs: want=%s, got=%s\n", t, p.peekToken.Type)
 	return p.peekToken.Type == t
 }
 
 func (p *Parser) expectPeek(t token.TokenType) bool {
-	incrementTabCount()
-	defer decrementTabCount()
-	printf("expectPeek: %s\n", t)
+	// fmt.Printf("expectPeek: %s\n", t)
 	if !p.peekTokenIs(t) {
 		p.peekError(t)
 		return false
@@ -241,16 +203,12 @@ func (p *Parser) expectPeek(t token.TokenType) bool {
 }
 
 func (p *Parser) Errors() []string {
-	incrementTabCount()
-	defer decrementTabCount()
-	println("Errors: ")
+	// fmt.Println("Errors: ")
 	return p.errors
 }
 
 func (p *Parser) peekError(t token.TokenType) {
-	incrementTabCount()
-	defer decrementTabCount()
-	println("peekError: ")
+	// fmt.Println("peekError: ")
 	msg := fmt.Sprintf("expected next token to be %s, got %s instead", t, p.peekToken.Type)
 	p.errors = append(p.errors, msg)
 }
@@ -269,16 +227,13 @@ func (p *Parser) registerInfix(tokenType token.TokenType, fn infixParseFn) {
 }
 
 func (p *Parser) parseIdentifier() ast.Expression {
-	incrementTabCount()
-	defer decrementTabCount()
-	println("parseIdentifier: ")
+	// fmt.Println("parseIdentifier: ")
 	return &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 }
 
 func (p *Parser) parseIntegerLiteral() ast.Expression {
-	incrementTabCount()
-	defer decrementTabCount()
-	println("parseIntegerLiteral: ")
+	defer untrace(trace("parseIntegerLiteral: "))
+	// fmt.Println("parseIntegerLiteral: ")
 	lit := &ast.IntegerLiteral{Token: p.curToken}
 
 	value, err := strconv.ParseInt(p.curToken.Literal, 0, 64)
@@ -294,17 +249,14 @@ func (p *Parser) parseIntegerLiteral() ast.Expression {
 }
 
 func (p *Parser) noPrefixParseFnError(t token.TokenType) {
-	incrementTabCount()
-	defer decrementTabCount()
-	println("noPrefixParseFnError: ")
+	// fmt.Println("noPrefixParseFnError: ")
 	msg := fmt.Sprintf("no prefix parse function for %s found", t)
 	p.errors = append(p.errors, msg)
 }
 
 func (p *Parser) parsePrefixExpression() ast.Expression {
-	incrementTabCount()
-	defer decrementTabCount()
-	println("parsePrefixExpression: ")
+	defer untrace(trace("parsePrefixExpression: "))
+	// fmt.Println("parsePrefixExpression: ")
 	expression := &ast.PrefixExpression{
 		Token:    p.curToken,
 		Operator: p.curToken.Literal,
@@ -318,33 +270,28 @@ func (p *Parser) parsePrefixExpression() ast.Expression {
 }
 
 func (p *Parser) peekPrecedence() int {
-	incrementTabCount()
-	defer decrementTabCount()
 	if p, ok := precedences[p.peekToken.Type]; ok {
-		printf("peekPrecedence: %v\n", p)
+		// fmt.Printf("peekPrecedence: %v\n", p)
 		return p
 	}
 
-	printf("peekPrecedence: %v\n", LOWEST)
+	// fmt.Printf("peekPrecedence: %v\n", LOWEST)
 	return LOWEST
 }
 
 func (p *Parser) curPrecedence() int {
-	incrementTabCount()
-	defer decrementTabCount()
 	if p, ok := precedences[p.curToken.Type]; ok {
-		printf("curPrecedence: %v\n", p)
+		// fmt.Printf("curPrecedence: %v\n", p)
 		return p
 	}
 
-	printf("curPrecedence: %v\n", LOWEST)
+	// fmt.Printf("curPrecedence: %v\n", LOWEST)
 	return LOWEST
 }
 
 func (p *Parser) parseInfixExpression(left ast.Expression) ast.Expression {
-	incrementTabCount()
-	defer decrementTabCount()
-	println("parseInfixExpression: ")
+	defer untrace(trace("parseInfixExpression: "))
+	// fmt.Println("parseInfixExpression: ")
 	expression := &ast.InfixExpression{
 		Token:    p.curToken,
 		Operator: p.curToken.Literal,
